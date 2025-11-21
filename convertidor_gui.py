@@ -1,5 +1,5 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+import customtkinter as ctk
+from tkinter import filedialog, messagebox
 from pathlib import Path
 from PIL import Image
 
@@ -21,18 +21,16 @@ def convert_image_file(
 
     try:
         with Image.open(input_path) as img:
-            # Corregir transparencia si se pasa a JPG
             if output_format in ("jpg", "jpeg") and img.mode in ("RGBA", "LA", "P"):
                 img = img.convert("RGB")
 
             if output_format == "ico":
-                # Tamaños para ICO: los que vengan del usuario, o por defecto
                 sizes = ico_sizes or [(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
                 img.save(output_file, format="ICO", sizes=sizes)
             else:
                 img.save(output_file, format=output_format.upper())
 
-        return True, f"OK: {input_path.name} -> {output_file.name}"
+        return True, f"OK: {input_path} -> {output_file}"
     except Exception as e:
         return False, f"ERROR en {input_path.name}: {e}"
 
@@ -67,139 +65,236 @@ def convert_folder(
 
     return ok_count, error_count, messages
 
-# ------------------ INTERFAZ GRÁFICA ------------------ #
+# ------------------ INTERFAZ MODERNA (CustomTkinter) ------------------ #
 
-class ImageConverterGUI:
+class ImageConverterApp(ctk.CTk):
 
-    def __init__(self, root: tk.Tk):
-        self.root = root
-        self.root.title("Conversor de Imágenes")
-        self.root.geometry("700x450")
-        self.root.minsize(650, 400)
-        self.root.resizable(True, True)
+    def __init__(self):
+        super().__init__()
 
-        self.mode = tk.StringVar(value="file")   # "file" o "folder"
-        self.input_folder = tk.StringVar()
-        self.input_file = tk.StringVar()
-        self.output_folder = tk.StringVar()
-        self.output_format = tk.StringVar(value="webp")
-        self.ico_sizes_str = tk.StringVar(value="16,32,48,64,128,256")
+        # Apariencia "tipo iOS": claro, limpio, bordes redondeados
+        ctk.set_appearance_mode("light")          # "light", "dark", "system"
+        ctk.set_default_color_theme("blue")       # "blue", "green", "dark-blue"
 
-        self.create_widgets()
+        self.title("Conversor de Imágenes")
+        self.geometry("750x480")
+        self.minsize(700, 430)
 
-    def create_widgets(self):
-        main_frame = ttk.Frame(self.root, padding=15)
-        main_frame.pack(fill="both", expand=True)
+        # Variables de estado
+        self.mode = ctk.StringVar(value="file")   # "file" o "folder"
+        self.input_file = ctk.StringVar()
+        self.input_folder = ctk.StringVar()
+        self.output_folder = ctk.StringVar()
+        self.output_format = ctk.StringVar(value="webp")
+        self.ico_sizes_str = ctk.StringVar(value="16,32,48,64,128,256")
 
-        # --- MODO --- #
-        mode_frame = ttk.LabelFrame(main_frame, text="Modo de conversión", padding=10)
-        mode_frame.pack(fill="x", pady=(0, 10))
+        self._build_ui()
 
-        ttk.Radiobutton(
+    # ------------------ UI ------------------ #
+
+    def _build_ui(self):
+        # Contenedor principal
+        main_frame = ctk.CTkFrame(self, corner_radius=24)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Título
+        title_label = ctk.CTkLabel(
+            main_frame,
+            text="Conversor de Imágenes",
+            font=ctk.CTkFont(size=22, weight="bold")
+        )
+        title_label.pack(pady=(15, 5))
+
+        subtitle_label = ctk.CTkLabel(
+            main_frame,
+            text="Convierte imágenes a WEBP, ICO, PNG, JPG y más",
+            font=ctk.CTkFont(size=13)
+        )
+        subtitle_label.pack(pady=(0, 15))
+
+        # Frame superior: modo y formato
+        top_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        top_frame.pack(fill="x", padx=20, pady=(5, 15))
+
+        # Bloque izquierda: modo
+        mode_frame = ctk.CTkFrame(top_frame, corner_radius=18)
+        mode_frame.pack(side="left", fill="x", expand=True, padx=(0, 10))
+
+        ctk.CTkLabel(
             mode_frame,
+            text="Modo de conversión",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+
+        mode_inner = ctk.CTkFrame(mode_frame, fg_color="transparent")
+        mode_inner.pack(anchor="w", padx=12, pady=(0, 8))
+
+        ctk.CTkRadioButton(
+            mode_inner,
             text="Archivo único",
             variable=self.mode,
             value="file",
-            command=self.update_mode
-        ).grid(row=0, column=0, padx=5, pady=2, sticky="w")
+            command=self._update_mode
+        ).pack(side="left", padx=(0, 12))
 
-        ttk.Radiobutton(
-            mode_frame,
+        ctk.CTkRadioButton(
+            mode_inner,
             text="Carpeta completa",
             variable=self.mode,
             value="folder",
-            command=self.update_mode
-        ).grid(row=0, column=1, padx=5, pady=2, sticky="w")
+            command=self._update_mode
+        ).pack(side="left")
 
-        # --- Archivo (arriba en el flujo para modo Archivo único) --- #
-        file_frame = ttk.LabelFrame(main_frame, text="Archivo de entrada", padding=10)
-        self.file_frame = file_frame
+        # Bloque derecha: formato + tamaños ICO
+        format_frame = ctk.CTkFrame(top_frame, corner_radius=18)
+        format_frame.pack(side="left", fill="x", expand=True, padx=(10, 0))
 
-        ttk.Label(file_frame, text="Archivo:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(file_frame, textvariable=self.input_file, width=60).grid(row=0, column=1, padx=5)
-        ttk.Button(file_frame, text="Buscar archivo...", command=self.browse_file).grid(row=0, column=2, padx=5)
-
-        # --- Carpeta de entrada (solo modo carpeta) --- #
-        folder_in_frame = ttk.LabelFrame(main_frame, text="Carpeta de entrada", padding=10)
-        self.folder_in_frame = folder_in_frame
-
-        ttk.Label(folder_in_frame, text="Carpeta:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(folder_in_frame, textvariable=self.input_folder, width=60).grid(row=0, column=1, padx=5)
-        ttk.Button(folder_in_frame, text="Buscar carpeta...", command=self.browse_input_folder).grid(row=0, column=2, padx=5)
-
-        # --- Carpeta salida --- #
-        folder_out_frame = ttk.LabelFrame(main_frame, text="Carpeta de salida", padding=10)
-        folder_out_frame.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(folder_out_frame, text="Carpeta:").grid(row=0, column=0, sticky="w")
-        ttk.Entry(folder_out_frame, textvariable=self.output_folder, width=60).grid(row=0, column=1, padx=5)
-        ttk.Button(folder_out_frame, text="Buscar carpeta...", command=self.browse_output_folder).grid(row=0, column=2, padx=5)
-
-        # --- Formato salida + tamaños ICO --- #
-        format_frame = ttk.LabelFrame(main_frame, text="Formato de salida", padding=10)
-        format_frame.pack(fill="x", pady=(0, 10))
-
-        ttk.Label(format_frame, text="Formato:").grid(row=0, column=0, sticky="w")
-        formatos = ["webp", "png", "jpg", "jpeg", "ico", "bmp", "tiff"]
-        combo = ttk.Combobox(
+        ctk.CTkLabel(
             format_frame,
-            textvariable=self.output_format,
+            text="Formato de salida",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+
+        format_inner = ctk.CTkFrame(format_frame, fg_color="transparent")
+        format_inner.pack(fill="x", padx=12, pady=(0, 8))
+
+        formatos = ["webp", "png", "jpg", "jpeg", "ico", "bmp", "tiff"]
+        self.format_combo = ctk.CTkComboBox(
+            format_inner,
             values=formatos,
-            state="readonly",
-            width=15
+            variable=self.output_format,
+            width=120,
+            command=self._on_format_change
         )
-        combo.grid(row=0, column=1, padx=5, pady=2, sticky="w")
-        combo.current(0)
-        combo.bind("<<ComboboxSelected>>", self.on_format_change)
+        self.format_combo.pack(side="left", padx=(0, 10))
 
-        # Frame para tamaños ICO (solo visible cuando formato = ico)
-        ico_frame = ttk.Frame(format_frame)
-        self.ico_frame = ico_frame
+        # Frame ICO sizes (solo visible si formato = ico)
+        self.ico_frame = ctk.CTkFrame(format_inner, fg_color="transparent")
+        ico_label = ctk.CTkLabel(
+            self.ico_frame,
+            text="Tamaños ICO:",
+            font=ctk.CTkFont(size=11)
+        )
+        ico_label.pack(side="left")
+        self.ico_entry = ctk.CTkEntry(
+            self.ico_frame,
+            textvariable=self.ico_sizes_str,
+            placeholder_text="16,32,64,128",
+            width=150
+        )
+        self.ico_entry.pack(side="left", padx=(5, 0))
 
-        ttk.Label(ico_frame, text="Tamaños ICO (px, separados por comas):").grid(row=0, column=0, sticky="w")
-        ttk.Entry(ico_frame, textvariable=self.ico_sizes_str, width=30).grid(row=0, column=1, padx=5, pady=2, sticky="w")
+        # Cuerpo: selección de archivo / carpeta + salida
+        center_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        center_frame.pack(fill="both", expand=True, padx=20, pady=(0, 10))
 
-        # --- Botón convertir --- #
-        ttk.Button(main_frame, text="Convertir", command=self.run_conversion).pack(pady=10)
+        # --- Frame para archivo único --- #
+        self.file_frame = ctk.CTkFrame(center_frame, corner_radius=18)
+        self.file_frame.pack(fill="x", pady=(0, 10))
+
+        ctk.CTkLabel(
+            self.file_frame,
+            text="Archivo de entrada",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
+
+        ctk.CTkEntry(
+            self.file_frame,
+            textvariable=self.input_file,
+            placeholder_text="Selecciona un archivo de imagen",
+            width=430
+        ).grid(row=1, column=0, columnspan=2, padx=(12, 8), pady=(0, 12), sticky="w")
+
+        ctk.CTkButton(
+            self.file_frame,
+            text="Buscar archivo",
+            command=self._browse_file,
+            width=120
+        ).grid(row=1, column=2, padx=(0, 12), pady=(0, 12), sticky="e")
+
+        # --- Frame para carpeta de entrada (modo carpeta) --- #
+        self.folder_in_frame = ctk.CTkFrame(center_frame, corner_radius=18)
+
+        ctk.CTkLabel(
+            self.folder_in_frame,
+            text="Carpeta de entrada",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
+
+        ctk.CTkEntry(
+            self.folder_in_frame,
+            textvariable=self.input_folder,
+            placeholder_text="Selecciona la carpeta con las imágenes",
+            width=430
+        ).grid(row=1, column=0, columnspan=2, padx=(12, 8), pady=(0, 12), sticky="w")
+
+        ctk.CTkButton(
+            self.folder_in_frame,
+            text="Buscar carpeta",
+            command=self._browse_input_folder,
+            width=120
+        ).grid(row=1, column=2, padx=(0, 12), pady=(0, 12), sticky="e")
+
+        # --- Carpeta de salida (común a ambos modos) --- #
+        out_frame = ctk.CTkFrame(center_frame, corner_radius=18)
+        out_frame.pack(fill="x", pady=(0, 10))
+
+        ctk.CTkLabel(
+            out_frame,
+            text="Carpeta de salida",
+            font=ctk.CTkFont(size=12, weight="bold")
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 4))
+
+        ctk.CTkEntry(
+            out_frame,
+            textvariable=self.output_folder,
+            placeholder_text="Selecciona la carpeta donde se guardarán las imágenes convertidas",
+            width=430
+        ).grid(row=1, column=0, columnspan=2, padx=(12, 8), pady=(0, 12), sticky="w")
+
+        ctk.CTkButton(
+            out_frame,
+            text="Buscar carpeta",
+            command=self._browse_output_folder,
+            width=120
+        ).grid(row=1, column=2, padx=(0, 12), pady=(0, 12), sticky="e")
+
+        # Botón Convertir
+        convert_button = ctk.CTkButton(
+            main_frame,
+            text="Convertir",
+            command=self._run_conversion,
+            height=40,
+            corner_radius=20,
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        convert_button.pack(pady=(5, 10))
 
         # Estado inicial
-        self.update_mode()
-        self.on_format_change()  # para mostrar/ocultar tamaños ICO
+        self._update_mode()
+        self._on_format_change()
 
-    # ------------------ Callbacks GUI ------------------ #
+    # ------------------ Helpers UI ------------------ #
 
-    def update_mode(self):
-        """
-        Reorganiza el flujo:
-        - Modo archivo: solo se muestra seleccionar archivo (arriba).
-        - Modo carpeta: solo se muestra seleccionar carpeta de entrada.
-        """
-        # Primero, quitar ambos si están visibles
+    def _update_mode(self):
+        # Quitar ambos
         self.file_frame.pack_forget()
         self.folder_in_frame.pack_forget()
 
         if self.mode.get() == "file":
-            # Archivo único → arriba del flujo
             self.file_frame.pack(fill="x", pady=(0, 10))
         else:
-            # Carpeta completa → mostrar solo carpeta de entrada
             self.folder_in_frame.pack(fill="x", pady=(0, 10))
 
-    def on_format_change(self, event=None):
-        """Muestra u oculta el campo de tamaños ICO según el formato."""
+    def _on_format_change(self, value=None):
         if self.output_format.get().lower() == "ico":
             if not self.ico_frame.winfo_ismapped():
-                self.ico_frame.grid(row=1, column=0, columnspan=2, pady=(5, 0), sticky="w")
+                self.ico_frame.pack(side="left", padx=(0, 0))
         else:
             if self.ico_frame.winfo_ismapped():
-                self.ico_frame.grid_forget()
+                self.ico_frame.pack_forget()
 
-    def browse_input_folder(self):
-        folder = filedialog.askdirectory(title="Seleccionar carpeta de entrada")
-        if folder:
-            self.input_folder.set(folder)
-
-    def browse_file(self):
+    def _browse_file(self):
         file_path = filedialog.askopenfilename(
             title="Seleccionar archivo de imagen",
             filetypes=[
@@ -210,16 +305,17 @@ class ImageConverterGUI:
         if file_path:
             self.input_file.set(file_path)
 
-    def browse_output_folder(self):
+    def _browse_input_folder(self):
+        folder = filedialog.askdirectory(title="Seleccionar carpeta de entrada")
+        if folder:
+            self.input_folder.set(folder)
+
+    def _browse_output_folder(self):
         folder = filedialog.askdirectory(title="Seleccionar carpeta de salida")
         if folder:
             self.output_folder.set(folder)
 
-    def parse_ico_sizes(self) -> list[tuple[int, int]] | None:
-        """
-        Convierte el texto de tamaños (ej: '16,32,64') en [(16,16), (32,32), (64,64)].
-        Si hay error, devuelve None.
-        """
+    def _parse_ico_sizes(self) -> list[tuple[int, int]] | None:
         text = self.ico_sizes_str.get().strip()
         if not text:
             return None
@@ -241,47 +337,45 @@ class ImageConverterGUI:
         except Exception:
             return None
 
-    def run_conversion(self):
+    # ------------------ Lógica de conversión (botón) ------------------ #
+
+    def _run_conversion(self):
         fmt = self.output_format.get().strip().lower()
         if not fmt:
             messagebox.showerror("Error", "Selecciona un formato de salida.")
             return
 
-        output_folder_str = self.output_folder.get().strip()
-        if not output_folder_str:
+        out_str = self.output_folder.get().strip()
+        if not out_str:
             messagebox.showerror("Error", "Selecciona la carpeta de salida.")
             return
 
-        output_folder = Path(output_folder_str)
-        if not output_folder.exists():
+        output_dir = Path(out_str)
+        if not output_dir.exists():
             messagebox.showerror("Error", "La carpeta de salida no existe.")
             return
 
-        # Tamaños ICO (si aplica)
         ico_sizes = None
         if fmt == "ico":
-            ico_sizes = self.parse_ico_sizes()
+            ico_sizes = self._parse_ico_sizes()
             if ico_sizes is None:
                 messagebox.showerror(
                     "Error en tamaños ICO",
-                    "Formato de tamaños no válido.\n\nEjemplo: 16,32,64,128"
+                    "Formato de tamaños no válido.\nEjemplo: 16,32,64,128"
                 )
                 return
 
         if self.mode.get() == "file":
-            # Modo archivo único
-            file_path_str = self.input_file.get().strip()
-            if not file_path_str:
+            # Archivo único
+            file_str = self.input_file.get().strip()
+            if not file_str:
                 messagebox.showerror("Error", "Selecciona un archivo de entrada.")
                 return
 
-            input_path = Path(file_path_str)
+            input_path = Path(file_str)
+            ok, msg = convert_image_file(input_path, fmt, output_dir, ico_sizes=ico_sizes)
+            output_path = output_dir / f"{input_path.stem}.{fmt}"
 
-            # Llamamos a la conversión
-            ok, msg = convert_image_file(input_path, fmt, output_folder, ico_sizes=ico_sizes)
-
-            # Mensaje de éxito / error detallado
-            output_path = output_folder / f"{input_path.stem}.{fmt}"
             if ok:
                 messagebox.showinfo(
                     "Conversión completada",
@@ -293,20 +387,19 @@ class ImageConverterGUI:
                 messagebox.showerror("Error en la conversión", msg)
 
         else:
-            # Modo carpeta completa
-            input_folder_str = self.input_folder.get().strip()
-            if not input_folder_str:
+            # Carpeta completa
+            folder_str = self.input_folder.get().strip()
+            if not folder_str:
                 messagebox.showerror("Error", "Selecciona la carpeta de entrada.")
                 return
 
-            input_folder = Path(input_folder_str)
+            input_dir = Path(folder_str)
+            ok_count, err_count, msgs = convert_folder(input_dir, fmt, output_dir, ico_sizes=ico_sizes)
 
-            ok_count, err_count, messages = convert_folder(input_folder, fmt, output_folder, ico_sizes=ico_sizes)
+            resumen = "\n".join(msgs[-10:])
+            resumen += f"\n\nArchivos OK: {ok_count}\nErrores: {err_count}"
 
-            resumen = "\n".join(messages[-15:])
-            resumen += f"\n\nArchivos convertidos correctamente: {ok_count}\nErrores: {err_count}"
-
-            if err_count == 0 and ok_count > 0:
+            if ok_count > 0 and err_count == 0:
                 messagebox.showinfo("Conversión completada", resumen)
             elif ok_count > 0:
                 messagebox.showwarning("Conversión con errores", resumen)
@@ -317,6 +410,5 @@ class ImageConverterGUI:
 # ------------------ MAIN ------------------ #
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = ImageConverterGUI(root)
-    root.mainloop()
+    app = ImageConverterApp()
+    app.mainloop()
